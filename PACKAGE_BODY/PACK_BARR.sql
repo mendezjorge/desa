@@ -92,6 +92,7 @@
                               ' socios relacionados a este registro');
     end if;
 
+  --Validando objeto
   end pp_vali_elim_regi;
 
 ---------------------------------------------------------------------------------------
