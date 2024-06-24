@@ -115,6 +115,7 @@ CREATE OR REPLACE EDITIONABLE PACKAGE BODY "SKN"."PACK_BARR" is
                               ' socios relacionados a este registro');
     end if;
 
+  --Validando objeto
   end pp_vali_elim_regi;
 
 ---------------------------------------------------------------------------------------
