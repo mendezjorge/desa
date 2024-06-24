@@ -1,112 +1,94 @@
 
-  CREATE OR REPLACE EDITIONABLE PACKAGE BODY "SKN"."AUTH_JWT" is
+  CREATE OR REPLACE EDITIONABLE PACKAGE BODY "SKN"."I010270" is
 
-  procedure pp_generar_token(i_user_id in number,
-                             i_time    in number,
-                             o_status  out varchar2,
-                             o_message out varchar2,
-                             o_token   out clob) is
-  
-    v_token varchar2(3000);
-  
-  begin
-  
-    v_token := apex_jwt.encode(p_iss           => 'sqlplus',
-                               p_sub           => 'api',
-                               p_aud           => 'apex',
-                               p_iat_ts        => sysdate, --hora de token generado
-                               p_exp_sec       => i_time, -- validez del token 1dia= 86400; 1min= 60 para minuto;
-                               p_other_claims  => '"id": ' ||
-                                                  apex_json.stringify(i_user_id),
-                               p_signature_key => sys.UTL_RAW.cast_to_raw('ikjsdjv89j9j23hoakdjHGHg788*^%^75sdhsddgfhghfgh'));
-  
-    o_status  := 200;
-    o_message := 'Success';
-    o_token   := v_token;
+  PROCEDURE pp_encripta_pass(P_pass in varchar2, p_user_codi in varchar2) IS
+    v_spass varchar2(32);
+    v_upass varchar2(40);
+  BEGIN
+    pa_encripta_pass(p_pass, v_spass, v_upass);
+    update segu_user
+       set USER_SPASS = v_spass, user_upass = v_upass
+     where user_codi = p_user_codi;
+    commit;
+  END;
 
-  exception
-    when others then
-      o_status  := 401;
-      o_message := '' || sqlerrm;
-  end;
+  -----------------------------------------------------------------------------------------------------------
 
-  procedure pp_decodificar_token(i_token   in clob, -- varchar2,
-                                 o_id      out varchar2,
-                                 o_status  out number,
-                                 o_message out varchar2) is
-  
-    l_token  apex_jwt.t_token;
-    v_exp    varchar2(100);
-    v_iss    varchar2(16);
-    v_sub    varchar2(16);
-    v_aud    varchar2(16);
-    time_act number;
-  begin
-  
-    l_token := apex_jwt.decode(p_value         => i_token,
-                               p_signature_key => sys.UTL_RAW.cast_to_raw('ikjsdjv89j9j23hoakdjHGHg788*^%^75sdhsddgfhghfgh'));
-    apex_json.parse(l_token.payload);
+  PROCEDURE PP_ACTUALIZAR_REGISTRO(p_indi_oper in varchar2,
+                                   p_USU_PASS  in varchar2,
+                                   p_PASS2     in varchar2,
+                                   p_user_codi in varchar2) IS
+    v_user          varchar2(20);
+    v_pass          varchar2(20) := p_pass2;
+    v_pass_apex     varchar2(100); -- variable para almacenar la contrase?a encriptada
+    p_indi_apex     varchar2(100);
+    p_indi_app_movi varchar(100);
+    p_usu_login     varchar2(100);
 
-    -- validar token
-    v_iss := apex_json.get_varchar2('iss');
-  
-    if v_iss <> 'sqlplus' then
-      o_id      := null;
-      o_status  := 401;
-      o_message := 'Token corrupto';
-      return;
-    end if;
-  
-    v_sub := apex_json.get_varchar2('sub');
-    if v_sub <> 'api' then
-      o_id      := null;
-      o_status  := 401;
-      o_message := 'Token corrupto';
-      return;
-    end if;
-  
-    v_aud := apex_json.get_varchar2('aud');
-    if v_aud <> 'apex' then
-      o_id      := null;
-      o_status  := 401;
-      o_message := 'Token corrupto';
-      return;
-    end if;
-  
-    select (v_expire - sysdate) * 60 * 60 * 24
-      into time_act
-      from (select to_date('01-JAN-1970', 'dd-mon-yyyy') +
-                   (apex_json.get_varchar2('exp') / 60 / 60 / 24) v_expire --se hace esta conversion porque el a?o esta en centurias
-              from dual);
-  
-    select to_date('01-JAN-1970', 'dd-mon-yyyy') +
-           (apex_json.get_varchar2('exp') / 60 / 60 / 24) v_expire --se hace esta conversion porque el a?o esta en centurias
-      into v_exp
-      from dual;
-  
-  
-    v_exp := apex_json.get_varchar2('exp');
-  --este if se agrego para que pueda pasar el token de los servicio que no necesitan temporalidad 13/09/2023 juan, alberto y orlando
-    if v_exp is null then
-      o_id      := apex_json.get_varchar2('id');
-      o_message := 'Success';
-      o_status  := 200;
-    else
-      if time_act > 0 then
-        o_id      := apex_json.get_varchar2('id');
-        o_message := 'Success';
-        o_status  := 200;
-      else
-        o_id      := null;
-        o_status  := 401;
-        o_message := 'Error token expire; ';
+  BEGIN
+
+    select user_login into p_usu_login from segu_user
+         where user_codi=p_user_codi;
+
+    v_user:=p_usu_login;
+
+    p_indi_apex     := rtrim(ltrim(general_skn.fl_busca_parametro('p_indi_apex')));
+    p_indi_app_movi := rtrim(ltrim(general_skn.fl_busca_parametro('p_indi_app_movi')));
+
+    if p_indi_oper = '1' then
+
+      if p_USU_PASS <> p_PASS2 THEN
+        raise_application_error(-20001, 'Vuelva a Confirmar Contrasenha');
       end if;
-    end if;
-  
-  exception
-    when others then
-      o_status  := 401;
-      o_message := '' || sqlerrm;
-  end;
 
-end auth_jwt;
+      /*IF FP_CONFIRMAR_REG('Esta seguro que desea cambiar la contrase?a?') =
+      'CONFIRMAR' THEN*/
+      --pl_mm('paso 1');
+
+      PA_EJECUTA_DDL('ALTER USER ' || v_USER || ' IDENTIFIED BY ' ||
+                     v_PASS);
+
+      if nvl(p_indi_app_movi, 'N') = 'S' then
+        pp_encripta_pass(p_usu_pass,p_user_codi);
+      end if;
+
+      -- actulizar la tabla como_segu para encriptar la contrase?a
+
+      if nvl(p_indi_apex, 'N') = 'S' then
+        v_pass_apex := my_hash(p_usu_login, p_usu_pass);
+
+        update segu_user
+           set user_pass = v_pass_apex --actualizacion en la tabla segu_user
+         where user_login = p_usu_login;
+
+        commit;
+      end if;
+      apex_application.g_print_success_message := 'La Contrasenha se cambio con exito';
+      --:GLOBAL.CERRAR_FORM := 'SI';
+
+      /*END IF;*/
+
+    elsif p_indi_oper = '2' then
+      update segu_user
+         set user_indi_bloq = 'N'
+       where user_login = p_usu_login;
+
+      PA_EJECUTA_DDL('ALTER USER ' || v_USER || ' account unlock');
+      apex_application.g_print_success_message := 'El usuario se desbloqueo con  exito!';
+
+    elsif p_indi_oper = '3' then
+      ---pl_mm(p_usu_login||'  v_USER:'||v_USER);
+
+      update segu_user
+         set user_indi_bloq = 'S'
+       where user_login = p_usu_login;
+
+      PA_EJECUTA_DDL('ALTER USER ' || upper(p_usu_login) ||
+                     ' account lock');
+
+      apex_application.g_print_success_message := 'El usuario se bloqueo con  exito!';
+    end if;
+
+  END;
+
+end I010270;
